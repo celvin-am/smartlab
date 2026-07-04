@@ -1,0 +1,60 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isValidBorrowerCreate() {
+      return request.resource.data.nim is string &&
+        request.resource.data.name is string &&
+        request.resource.data.prodi is string &&
+        request.resource.data.borrowDate is string &&
+        request.resource.data.component is string &&
+        request.resource.data.quantity is number &&
+        request.resource.data.quantity > 0 &&
+        request.resource.data.returned is bool &&
+        request.resource.data.hidden is bool;
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /loans/{loanId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /parts/{partId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /borrowers/{borrowerId} {
+      allow read: if true;
+      allow create: if isValidBorrowerCreate();
+      allow update: if true;
+      allow delete: if isAuthenticated();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /student_email_settings/{docId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+  }
+}

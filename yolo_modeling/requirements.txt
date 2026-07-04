@@ -1,0 +1,8 @@
+# Minimal requirements for YOLOv11 training & inference
+ultralytics>=8.0.0
+roboflow
+opencv-python
+pyyaml
+matplotlib
+# torch should be installed according to your CUDA / CPU environment
+# Visit https://pytorch.org/ for appropriate install command

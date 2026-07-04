@@ -1,0 +1,17 @@
+# Folder dependencies (jangan di-push)
+node_modules/
+env_lab/
+__pycache__/
+.venv/
+.env
+
+# File rahasia (HARUS DIABAIKAN)
+serviceAccountKey.json
+*.pem
+*.key
+
+# Log & OS files
+*.log
+.DS_Store
+
+.vscode/

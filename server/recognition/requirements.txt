@@ -1,0 +1,7 @@
+flask
+opencv-python
+numpy
+firebase-admin
+pillow
+requests
+ultralytics

@@ -1,0 +1,15 @@
+[Unit]
+Description=LabAccess YOLO Equipment Detection
+After=network.target
+
+[Service]
+Type=simple
+User=nabila
+WorkingDirectory=/home/nabila/Downloads/Deteksi Objek Laboratorium
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/nabila/Downloads/Deteksi Objek Laboratorium/.venv/bin/python /home/nabila/Downloads/Deteksi Objek Laboratorium/Webcam_test.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

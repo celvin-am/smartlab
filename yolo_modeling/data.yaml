@@ -1,0 +1,7 @@
+# Example data.yaml for Ultralytics / YOLOv11
+train: ../dataset/train/images
+val: ../dataset/valid/images
+test: ../dataset/test/images
+
+nc: 3
+names: ['ESP32','Sensor PIR','Resistor']

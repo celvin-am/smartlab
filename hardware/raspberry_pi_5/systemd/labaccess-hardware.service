@@ -1,0 +1,15 @@
+[Unit]
+Description=LabAccess Hardware Controller
+After=network.target
+
+[Service]
+Type=simple
+User=nabila
+WorkingDirectory=/home/nabila/Downloads/raspberry_pi_5
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/nabila/Downloads/raspberry_pi_5/.venv/bin/python /home/nabila/Downloads/raspberry_pi_5/main.py --mode server --port 5000 --service-account /home/nabila/Downloads/raspberry_pi_5/serviceAccountKey.json
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
