@@ -77,12 +77,11 @@ class StudentRegistry:
         if not self.enabled:
             return 0
 
-        update_data: Dict[str, Any] = {
+        update_data = {
             'fingerprintMode': fingerprint_mode,
             'fingerprintStatus': status,
+            'fingerprintId': '' if fingerprint_id is None else str(fingerprint_id),
         }
-        if fingerprint_id is not None:
-            update_data['fingerprintId'] = str(fingerprint_id)
 
         updated_count = 0
         snapshot = self._client.collection(self.collection_name).where('nim', '==', str(nim).strip()).stream()

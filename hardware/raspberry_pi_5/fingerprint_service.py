@@ -32,7 +32,7 @@ class FingerprintReader(Protocol):
 class AS608FingerprintService:
     def __init__(
         self,
-        serial_port: str = "/dev/serial0",
+        serial_port: str = "/dev/ttyAMA0",
         baudrate: int = 57600,
         address: int = 0xFFFFFFFF,
         password: int = 0x00000000,
@@ -123,6 +123,31 @@ class AS608FingerprintService:
         except Exception as exc:  # pragma: no cover - hardware specific
             raise RuntimeError(f'Failed to search fingerprint template: {exc}') from exc
 
+    def _find_first_free_pyfingerprint_slot(self, sensor) -> int:
+        try:
+            capacity = int(sensor.getStorageCapacity())
+        except Exception:
+            capacity = 128
+
+        pages = (capacity + 31) // 32
+        for page in range(pages):
+            try:
+                index = sensor.getTemplateIndex(page)
+            except Exception:
+                continue
+
+            if not index:
+                continue
+
+            for idx, value in enumerate(index):
+                slot = page * 32 + idx + 1
+                if slot > capacity:
+                    break
+                if not bool(value):
+                    return slot
+
+        raise RuntimeError('Tidak ada slot kosong untuk menyimpan template')
+
     def enroll(self, student_id: str) -> int:
         print(f"[FP] enroll started for student_id={student_id}")
 
@@ -170,7 +195,7 @@ class AS608FingerprintService:
                 if sensor.store_model(location) != adafruit_fingerprint.OK:
                     raise RuntimeError('Gagal menyimpan sidik jari ke memori')
 
-                app_id = location - 1
+                app_id = location
                 print(f"[FP] enroll success -> fingerprint_id={app_id} (sensor slot={location})")
                 return int(app_id)
             except Exception as exc:
@@ -201,11 +226,15 @@ class AS608FingerprintService:
 
         try:
             sensor.createTemplate()
-            stored_position = sensor.storeTemplate()
+            target_slot = self._find_first_free_pyfingerprint_slot(sensor)
+            stored_position = sensor.storeTemplate(target_slot)
         except Exception as exc:  # pragma: no cover - hardware specific
             raise RuntimeError(f'Failed to store fingerprint template: {exc}') from exc
 
-        app_id = stored_position - 1
+        if stored_position is None:
+            raise RuntimeError('Failed to store fingerprint template: no slot returned')
+
+        app_id = stored_position
         print(f"[FP] enroll success -> fingerprint_id={app_id} (sensor slot={stored_position})")
         return int(app_id)
 
@@ -215,7 +244,7 @@ class AS608FingerprintService:
             raise ValueError('template_id must be >= 0')
 
         try:
-            target_slot = template_id + 1
+            target_slot = template_id
             if self._impl == 'adafruit':
                 result = sensor.delete_template(target_slot)
                 if result != adafruit_fingerprint.OK:
@@ -225,7 +254,7 @@ class AS608FingerprintService:
 
             if hasattr(sensor, 'deleteTemplate'):
                 result = sensor.deleteTemplate(target_slot)
-                if result not in (None, 0, True):
+                if result is not True:
                     raise RuntimeError(f'Failed to delete template {template_id} (slot {target_slot}): {result}')
                 print(f'[FP] delete_template success -> fingerprint_id={template_id} (slot {target_slot})')
                 return True
@@ -274,7 +303,7 @@ class AS608FingerprintService:
                     return FingerprintMatch(is_verified=False, enrolled_id=None, confidence=0)
 
                 sensor_slot = int(sensor.finger_id)
-                app_id = sensor_slot - 1
+                app_id = sensor_slot
                 print(f"[FP] fingerprint matched at slot {sensor_slot} -> app_id={app_id} (confidence={sensor.confidence})")
                 return FingerprintMatch(is_verified=True, enrolled_id=app_id, confidence=int(sensor.confidence))
             except Exception as exc:
@@ -287,7 +316,7 @@ class AS608FingerprintService:
 
         position_number, accuracy = self._search_template()
         if position_number >= 0:
-            app_id = position_number - 1
+            app_id = position_number
             print(f"[FP] fingerprint matched at slot {position_number} -> app_id={app_id} (accuracy={accuracy})")
             return FingerprintMatch(is_verified=True, enrolled_id=app_id, confidence=accuracy)
 
