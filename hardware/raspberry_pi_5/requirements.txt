@@ -5,6 +5,7 @@ requests>=2.31.0
 firebase-admin>=6.5.0
 pyfingerprint==1.5
 flask>=2.3.0
-RPLCD>=1.0.0
 
 
+gpiozero
+lgpio

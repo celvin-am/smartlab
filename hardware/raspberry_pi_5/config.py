@@ -27,9 +27,9 @@ class AppConfig:
     buzzer_fail_seconds: float = 1.0
 
     # Raspberry Pi serial port for AS608.
-    # Default prefers GPIO UART on /dev/serial0, which is a symlink to the active UART.
-    # If you use a USB-TTL adapter instead, set this to /dev/ttyUSB0.
-    fingerprint_serial_port: str = "/dev/serial0"
+    # Default prefers GPIO UART on /dev/ttyAMA0, which is a symlink to the active UART.
+    # If you use a USB-TTL adapter instead, set this to /dev/ttyAMA0.
+    fingerprint_serial_port: str = "/dev/ttyAMA0"
     
     # AS608 Baud rate (default 57600)
     # If communication fails, try 9600 or 115200

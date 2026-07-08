@@ -1,25 +1,24 @@
 from __future__ import annotations
 
 import time
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
+# Setup logging agar bisa dipantau lewat systemd journal
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("LabAccessDevice")
+
 try:
     from gpiozero import Buzzer, OutputDevice
-except Exception:  # pragma: no cover - optional hardware dependency
+except Exception:
     Buzzer = None
     OutputDevice = None
 
 try:
-    import smbus2
-except Exception:  # pragma: no cover - optional hardware dependency
-    smbus2 = None
-
-try:
     from RPLCD.i2c import CharLCD
-except Exception:  # pragma: no cover - optional hardware dependency
+except Exception:
     CharLCD = None
-
 
 class RelayDoorLock:
     def __init__(self, pin: int, active_high: bool = True, invert_logic: bool = False):
@@ -30,8 +29,9 @@ class RelayDoorLock:
         if OutputDevice is not None:
             try:
                 self._device = OutputDevice(pin, active_high=active_high, initial_value=False)
-            except Exception as exc:  # pragma: no cover - GPIO not available
-                print(f"[Relay] GPIO initialization failed: {exc}")
+                logger.info(f"[Relay] Initialized on pin {pin}")
+            except Exception as exc:
+                logger.error(f"[Relay] GPIO initialization failed: {exc}")
 
     def open(self):
         if self._device:
@@ -60,8 +60,9 @@ class StatusBuzzer:
         if Buzzer is not None:
             try:
                 self._device = Buzzer(pin)
-            except Exception as exc:  # pragma: no cover - GPIO not available
-                print(f"[Buzzer] GPIO initialization failed: {exc}")
+                logger.info(f"[Buzzer] Initialized on pin {pin}")
+            except Exception as exc:
+                logger.error(f"[Buzzer] GPIO initialization failed: {exc}")
 
     def _beep(self, duration: float, repeat: int = 1, pause: float = 0.1):
         if not self._device:
@@ -82,12 +83,6 @@ class StatusBuzzer:
 
 
 class I2CLcdDisplay:
-    """Simple LCD I2C wrapper.
-
-    If RPLCD is installed, this uses the PCF8574 I2C backpack driver.
-    Otherwise, it logs messages to the console for testing.
-    """
-
     def __init__(self, sda_pin: int, scl_pin: int, address: int = 0x27):
         self.sda_pin = sda_pin
         self.scl_pin = scl_pin
@@ -96,6 +91,7 @@ class I2CLcdDisplay:
 
         if CharLCD is not None:
             try:
+                logger.info(f"[LCD] Attempting to initialize at address {hex(address)}")
                 self._device = CharLCD(
                     i2c_expander='PCF8574',
                     address=self.address,
@@ -105,9 +101,12 @@ class I2CLcdDisplay:
                     charmap='A00',
                     auto_linebreaks=True,
                 )
-            except Exception as exc:  # pragma: no cover - hardware-specific I2C failure
-                print(f"[LCD] Failed to initialize RPLCD: {exc}")
+                logger.info("[LCD] Initialization successful")
+            except Exception as exc:
+                logger.error(f"[LCD] Failed to initialize RPLCD: {exc}")
                 self._device = None
+        else:
+            logger.warning("[LCD] RPLCD library not installed")
 
     def _format_line(self, text: str, width: int = 16) -> str:
         return text.ljust(width)[:width]
@@ -117,11 +116,10 @@ class I2CLcdDisplay:
             try:
                 self._device.clear()
             except Exception as exc:
-                print(f"[LCD] clear failed: {exc}")
-        else:
-            print("[LCD] clear")
+                logger.error(f"[LCD] clear failed: {exc}")
 
     def show_message(self, line1: str, line2: str = ""):
+        logger.info(f"[LCD] Displaying: '{line1}' | '{line2}'")
         if self._device:
             try:
                 self._device.clear()
@@ -129,12 +127,12 @@ class I2CLcdDisplay:
                 self._device.cursor_pos = (1, 0)
                 self._device.write_string(self._format_line(line2))
             except Exception as exc:
-                print(f"[LCD] write failed: {exc}")
+                logger.error(f"[LCD] write failed: {exc}")
         else:
-            print(f"[LCD] {line1} | {line2}")
+            print(f"[LCD Mock] {line1} | {line2}")
 
     def show_ready(self):
-        self.show_message("Smart Lab Access", "Tempelkan fingerprint")
+        self.show_message("Smart Lab Access", "Tempelkan jari")
 
     def show_open(self):
         self.show_message("Pintu terbuka", "Silakan masuk")
@@ -143,14 +141,14 @@ class I2CLcdDisplay:
         self.show_message("Pintu terkunci", "Proses selesai")
 
     def show_denied(self):
-        self.show_message("Gagal Akses", "Fingerprint tidak terdaftar")
+        self.show_message("Gagal Akses", "Tidak terdaftar")
 
     def close(self):
         if self._device:
             try:
                 self._device.close()
             except Exception as exc:
-                print(f"[LCD] close failed: {exc}")
+                logger.error(f"[LCD] close failed: {exc}")
 
 
 @dataclass

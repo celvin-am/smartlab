@@ -184,7 +184,7 @@ def getFingerprintEnroll(finger, fid):
     
     return False
 
-def setup(port: str = '/dev/ttyUSB0', baudrate: int = 57600):
+def setup(port: str = '/dev/ttyAMA0', baudrate: int = 57600):
     """Setup - mirip ESP32 setup()"""
     
     print("\nSistem Pendaftaran Fingerprint AS608")
@@ -246,7 +246,7 @@ def main():
     """Main program"""
     
     parser = argparse.ArgumentParser(description='USB/TTL Fingerprint enrollment utility')
-    parser.add_argument('--port', default='/dev/ttyUSB0', help='Fingerprint serial port to use')
+    parser.add_argument('--port', default='/dev/ttyAMA0', help='Fingerprint serial port to use')
     parser.add_argument('--baud', type=int, default=57600, help='Fingerprint baud rate')
     args = parser.parse_args()
 

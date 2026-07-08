@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--student-name', default='', help='Nama mahasiswa untuk mode register')
     parser.add_argument('--student-email', default='', help='Email mahasiswa untuk mode register')
     parser.add_argument('--service-account', default='', help='Path serviceAccountKey.json Firebase Admin')
-    parser.add_argument('--fingerprint-port', default='', help='Override fingerprint serial port (e.g. /dev/ttyUSB0)')
+    parser.add_argument('--fingerprint-port', default='', help='Override fingerprint serial port (e.g. /dev/ttyAMA0)')
     parser.add_argument('--fingerprint-baud', type=int, default=0, help='Override fingerprint baud rate')
     parser.add_argument('--port', type=int, default=5000, help='Port untuk server mode')
     parser.add_argument('--host', default='0.0.0.0', help='Host untuk server mode')
@@ -176,7 +176,7 @@ def run_server_mode(
 
             # Check if fingerprint sensor is ready
             if not fingerprint.ready:
-                error_msg = 'AS608 fingerprint sensor not initialized. Check GPIO14/GPIO15 and /dev/serial0'
+                error_msg = 'AS608 fingerprint sensor not initialized. Check GPIO14/GPIO15 and /dev/ttyAMA0'
                 print(f'[API] Error: {error_msg}')
                 registry.update_fingerprint_status(student_nim, None, status='failed', fingerprint_mode='register')
                 return jsonify({
@@ -253,23 +253,6 @@ def run_server_mode(
             'ready': fingerprint.ready,
             'sensor': 'AS608',
         }), 200
-
-    @app.route('/api/door/open', methods=['POST'])
-    def open_door_from_portal():
-        payload = request.get_json(silent=True) or {}
-        try:
-            devices.buzzer.success()
-            devices.lcd.show_message('Portal Access', payload.get('status', 'open')[:12])
-            devices.relay.open()
-            print('[API] Door open requested from portal:', payload)
-            time.sleep(APP_CONFIG.door_open_seconds)
-            devices.relay.close()
-            devices.lcd.show_ready()
-            return jsonify({'success': True, 'message': 'Door opened'}), 200
-        except Exception as exc:
-            devices.lcd.show_message('Door Error', 'Portal')
-            print(f'[API] Door open failed: {exc}')
-            return jsonify({'success': False, 'error': str(exc)}), 500
 
     devices.lcd.show_message('Server Mode', 'Ready')
     print(f'[System] Server mode started at http://{host}:{port}')

@@ -8,4 +8,4 @@ if [ -f "$PROJECT_DIR/.venv/bin/activate" ]; then
   source "$PROJECT_DIR/.venv/bin/activate"
 fi
 
-exec python3 "$PROJECT_DIR/main.py" --mode server --port 5000 --service-account "$PROJECT_DIR/serviceAccountKey.json"
+exec python3 "$PROJECT_DIR/main.py" --mode server --port 5002 --service-account "$PROJECT_DIR/serviceAccountKey.json"
