@@ -287,6 +287,52 @@ class AS608FingerprintService:
         except Exception as exc:
             raise RuntimeError(f'Clear templates failed: {exc}') from exc
 
+
+    def verify_once(self) -> Optional[FingerprintMatch]:
+        """Non-blocking fingerprint check.
+
+        Returns:
+            None if no finger is currently detected.
+            FingerprintMatch if a finger was detected and processed.
+        """
+        if self._impl == 'adafruit':
+            sensor = self._require_sensor()
+            try:
+                if sensor.get_image() != adafruit_fingerprint.OK:
+                    return None
+
+                if sensor.image_2_tz(1) != adafruit_fingerprint.OK:
+                    raise RuntimeError('Failed to convert image to template')
+
+                if sensor.finger_search() != adafruit_fingerprint.OK:
+                    print('[FP] fingerprint not recognized')
+                    return FingerprintMatch(is_verified=False, enrolled_id=None, confidence=0)
+
+                sensor_slot = int(sensor.finger_id)
+                app_id = sensor_slot
+                print(f"[FP] fingerprint matched at slot {sensor_slot} -> app_id={app_id} (confidence={sensor.confidence})")
+                return FingerprintMatch(is_verified=True, enrolled_id=app_id, confidence=int(sensor.confidence))
+            except Exception as exc:
+                raise RuntimeError(f'Verify failed (adafruit): {exc}') from exc
+
+        sensor = self._require_sensor()
+        try:
+            if not sensor.readImage():
+                return None
+        except Exception as exc:
+            raise RuntimeError(f'Failed to read fingerprint image: {exc}') from exc
+
+        self._convert_current_image(0x01)
+
+        position_number, accuracy = self._search_template()
+        if position_number >= 0:
+            app_id = position_number
+            print(f"[FP] fingerprint matched at slot {position_number} -> app_id={app_id} (accuracy={accuracy})")
+            return FingerprintMatch(is_verified=True, enrolled_id=app_id, confidence=accuracy)
+
+        print('[FP] fingerprint not recognized')
+        return FingerprintMatch(is_verified=False, enrolled_id=None, confidence=accuracy)
+
     def verify(self) -> FingerprintMatch:
         if self._impl == 'adafruit':
             sensor = self._require_sensor()
