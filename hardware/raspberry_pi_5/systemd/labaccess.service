@@ -1,0 +1,15 @@
+[Unit]
+Description=Smart Lab Access Controller
+After=network.target
+
+[Service]
+Type=simple
+User=nabila
+WorkingDirectory=/home/nabila/lab-access-system/hardware/raspberry_pi_5
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/nabila/lab-access-system/hardware/raspberry_pi_5/main.py --mode unified --host 0.0.0.0 --port 5001 --fingerprint-port /dev/ttyAMA0 --fingerprint-baud 57600 --service-account /home/nabila/lab-access-system/hardware/raspberry_pi_5/serviceAccountKey.json
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
