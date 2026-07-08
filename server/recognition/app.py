@@ -84,7 +84,7 @@ def get_camera():
     if camera is None:
         try:
             # Try device 24 first (Raspberry Pi camera), then fallback to others
-            working_devices = [1, 2, 0, 24, 25, 26, 27, 33, 34, 35, 36, 3]
+            working_devices = [0, 2, 1, 24, 25, 26, 27, 33, 34, 35, 36, 3]
             for device_id in working_devices:
                 try:
                     camera = cv2.VideoCapture(device_id)
@@ -580,5 +580,5 @@ def door_open_proxy():
 
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', '5001'))
+    port = int(os.getenv('PORT', '5002'))
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)

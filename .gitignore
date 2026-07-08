@@ -9,9 +9,12 @@ __pycache__/
 serviceAccountKey.json
 *.pem
 *.key
-
 # Log & OS files
 *.log
 .DS_Store
-
 .vscode/
+# Firebase service account keys
+**/serviceAccountKey.json
+*.firebase-adminsdk*.json
+# Python/Node generated folders
+*.pyc
