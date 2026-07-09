@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Optional
 
@@ -88,6 +89,7 @@ class I2CLcdDisplay:
         self.scl_pin = scl_pin
         self.address = address
         self._device = None
+        self._lock = threading.Lock()
 
         if CharLCD is not None:
             try:
@@ -119,17 +121,22 @@ class I2CLcdDisplay:
                 logger.error(f"[LCD] clear failed: {exc}")
 
     def show_message(self, line1: str, line2: str = ""):
-        logger.info(f"[LCD] Displaying: '{line1}' | '{line2}'")
-        if self._device:
-            try:
-                self._device.clear()
-                self._device.write_string(self._format_line(line1))
-                self._device.cursor_pos = (1, 0)
-                self._device.write_string(self._format_line(line2))
-            except Exception as exc:
-                logger.error(f"[LCD] write failed: {exc}")
-        else:
-            print(f"[LCD Mock] {line1} | {line2}")
+        with self._lock:
+            logger.info(f"[LCD] Displaying: '{line1}' | '{line2}'")
+            if self._device:
+                try:
+                    self._device.clear()
+                    time.sleep(0.08)
+                    self._device.cursor_pos = (0, 0)
+                    self._device.write_string(self._format_line(line1))
+                    time.sleep(0.04)
+                    self._device.cursor_pos = (1, 0)
+                    self._device.write_string(self._format_line(line2))
+                    time.sleep(0.04)
+                except Exception as exc:
+                    logger.error(f"[LCD] write failed: {exc}")
+            else:
+                print(f"[LCD Mock] {line1} | {line2}")
 
     def show_ready(self):
         self.show_message("Smart Lab Access", "Tempelkan jari")

@@ -161,25 +161,101 @@ def run_unified_mode(
     app = Flask(__name__)
     sensor_lock = threading.Lock()
     api_busy = threading.Event()
+    door_lock = threading.Lock()
+    pending_exit_lock = threading.Lock()
+    pending_exit = {
+        'active': False,
+        'student_id': '',
+        'status': '',
+        'component_name': '',
+        'expires_at': 0.0,
+    }
+    pending_exit_timeout_seconds = 180
+
+
+    def open_door_sequence(student_id='web', note='Door opened from website', source='api', status='', component_name='', direction=''):
+        with door_lock:
+            devices.buzzer.success()
+
+            normalized_direction = str(direction or '').strip().lower()
+            if normalized_direction in {'masuk', 'in', 'entry'}:
+                lcd_line2 = 'Silakan masuk'
+            elif normalized_direction in {'keluar', 'out', 'exit'}:
+                lcd_line2 = 'Silakan keluar'
+            elif source == 'website':
+                # Door open from website happens after YOLO scan + jumlah input + Selesai,
+                # so the student is leaving the lab.
+                lcd_line2 = 'Silakan keluar'
+            else:
+                # Fingerprint verify at the beginning means entering the lab.
+                lcd_line2 = 'Silakan masuk'
+
+            devices.lcd.show_message('Pintu terbuka', lcd_line2)
+            time.sleep(0.15)
+
+            devices.relay.open()
+            print('[Door] Pintu terbuka - delay selama', APP_CONFIG.door_open_seconds, 'detik')
+            time.sleep(APP_CONFIG.door_open_seconds)
+
+            devices.relay.close()
+            time.sleep(0.25)
+            devices.lcd.show_locked()
+            bridge.report_access(
+                student_id=str(student_id or 'web'),
+                verified=True,
+                action='open-door',
+                note=note,
+            )
+            time.sleep(1.5)
+            devices.lcd.show_ready()
+
 
     def handle_match(match):
         if match.is_verified:
             student_id = 'unknown' if match.enrolled_id is None else str(match.enrolled_id)
-            devices.buzzer.success()
-            devices.lcd.show_open()
-            devices.relay.open()
-            print('[Door] Pintu terbuka - delay selama', APP_CONFIG.door_open_seconds, 'detik')
-            time.sleep(APP_CONFIG.door_open_seconds)
-            devices.relay.close()
-            devices.lcd.show_locked()
-            bridge.report_access(
-                student_id=student_id,
-                verified=True,
-                action='open-door',
-                note='Fingerprint verified',
-            )
-            time.sleep(1.5)
-            devices.lcd.show_ready()
+
+            exit_context = None
+            now = time.time()
+            with pending_exit_lock:
+                if pending_exit['active'] and pending_exit['expires_at'] >= now:
+                    exit_context = dict(pending_exit)
+                    pending_exit.update({
+                        'active': False,
+                        'student_id': '',
+                        'status': '',
+                        'component_name': '',
+                        'expires_at': 0.0,
+                    })
+                elif pending_exit['active'] and pending_exit['expires_at'] < now:
+                    print('[Exit] Pending exit expired, next fingerprint treated as entry.')
+                    pending_exit.update({
+                        'active': False,
+                        'student_id': '',
+                        'status': '',
+                        'component_name': '',
+                        'expires_at': 0.0,
+                    })
+
+            if exit_context:
+                note_parts = ['Fingerprint verified for exit']
+                if exit_context.get('status'):
+                    note_parts.append(f"status={exit_context.get('status')}")
+                if exit_context.get('component_name'):
+                    note_parts.append(f"component={exit_context.get('component_name')}")
+
+                open_door_sequence(
+                    student_id=exit_context.get('student_id') or student_id,
+                    note='; '.join(note_parts),
+                    source='fingerprint-exit',
+                    direction='keluar',
+                )
+            else:
+                open_door_sequence(
+                    student_id=student_id,
+                    note='Fingerprint verified',
+                    source='fingerprint',
+                    direction='masuk',
+                )
         else:
             devices.buzzer.failure()
             devices.lcd.show_denied()
@@ -224,6 +300,112 @@ def run_unified_mode(
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
         response.headers['Access-Control-Allow-Methods'] = 'GET,POST,DELETE,OPTIONS'
         return response
+
+    @app.route('/api/door/prepare-exit', methods=['POST'])
+    def prepare_exit_after_transaction():
+        payload = request.get_json(silent=True) or {}
+
+        selected_status = str(payload.get('status', '')).strip()
+        component_name = str(
+            payload.get('componentName')
+            or payload.get('component_name')
+            or payload.get('component')
+            or payload.get('item')
+            or ''
+        ).strip()
+        student_id = str(
+            payload.get('student_id')
+            or payload.get('studentId')
+            or payload.get('student_nim')
+            or payload.get('nim')
+            or 'web'
+        ).strip() or 'web'
+
+        expires_at = time.time() + pending_exit_timeout_seconds
+
+        with pending_exit_lock:
+            pending_exit.update({
+                'active': True,
+                'student_id': student_id,
+                'status': selected_status,
+                'component_name': component_name,
+                'expires_at': expires_at,
+            })
+
+        print(f'[Exit] Pending exit prepared: student_id={student_id} status={selected_status or "-"} component={component_name or "-"} timeout={pending_exit_timeout_seconds}s')
+        devices.lcd.show_message('Transaksi selesai', 'Scan jari keluar')
+
+        return jsonify({
+            'success': True,
+            'action': 'prepare-exit',
+            'message': 'Tempelkan fingerprint untuk membuka pintu keluar.',
+            'student_id': student_id,
+            'status': selected_status,
+            'componentName': component_name,
+            'expires_seconds': pending_exit_timeout_seconds,
+        }), 200
+
+    @app.route('/api/door/open', methods=['POST'])
+    def open_door_from_website():
+        payload = request.get_json(silent=True) or {}
+
+        selected_status = str(payload.get('status', '')).strip()
+        component_name = str(
+            payload.get('componentName')
+            or payload.get('component_name')
+            or payload.get('item')
+            or ''
+        ).strip()
+        student_id = str(
+            payload.get('student_id')
+            or payload.get('studentId')
+            or payload.get('nim')
+            or 'web'
+        ).strip() or 'web'
+
+        direction = str(
+            payload.get('direction')
+            or payload.get('doorDirection')
+            or ''
+        ).strip()
+
+        note_parts = ['Door opened from website']
+        if selected_status:
+            note_parts.append(f'status={selected_status}')
+        if component_name:
+            note_parts.append(f'component={component_name}')
+        note = '; '.join(note_parts)
+
+        print(f'[API] Door open request: status={selected_status or "-"} component={component_name or "-"} student_id={student_id}')
+
+        api_busy.set()
+        try:
+            open_door_sequence(
+                student_id=student_id,
+                note=note,
+                source='website',
+                status=selected_status,
+                component_name=component_name,
+                direction=direction,
+            )
+
+            return jsonify({
+                'success': True,
+                'action': 'open-door',
+                'status': selected_status,
+                'componentName': component_name,
+                'student_id': student_id,
+                'direction': direction or 'keluar',
+                'open_seconds': APP_CONFIG.door_open_seconds,
+            }), 200
+        except Exception as exc:
+            print(f'[API] Door open failed: {exc}')
+            devices.buzzer.failure()
+            devices.lcd.show_message('Door error', str(exc)[:16])
+            return jsonify({'success': False, 'error': str(exc)}), 500
+        finally:
+            api_busy.clear()
+            devices.lcd.show_ready()
 
     @app.route('/api/fingerprint/register', methods=['POST'])
     def register_fingerprint():
@@ -327,6 +509,8 @@ def run_unified_mode(
 
     devices.lcd.show_ready()
     print(f'[System] Unified mode started at http://{host}:{port}')
+    print('[API] POST /api/door/prepare-exit - Siapkan fingerprint keluar setelah transaksi')
+    print('[API] POST /api/door/open - Buka pintu dari website')
     print('[API] POST /api/fingerprint/register - Daftar fingerprint dari website')
     print('[API] DELETE /api/fingerprint/template - Hapus template fingerprint di Pi')
     print('[API] POST /api/fingerprint/reset - Reset semua template fingerprint di Pi')

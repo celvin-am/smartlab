@@ -70,22 +70,25 @@ const StudentPortalPage = () => {
     setRemoteStreamUrl(null)
   }
 
-  const handleDoorTrigger = async (selectedStatus, componentName) => {
-    const response = await fetch(`${HARDWARE_URL}/api/door/open`, {
+  const handlePrepareExit = async (selectedStatus, componentName) => {
+    const response = await fetch(`${HARDWARE_URL}/api/door/prepare-exit`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         status: selectedStatus,
+        componentName: componentName || '',
         component: componentName || '',
-        student_nim: student.nim || ''
+        student_nim: student.nim || '',
+        student_id: student.nim || '',
+        direction: 'keluar'
       })
     })
 
     const data = await response.json().catch(() => ({}))
     if (!response.ok || !data.success) {
-      throw new Error(data.error || 'Gagal memanggil hardware.')
+      throw new Error(data.error || 'Gagal menyiapkan fingerprint keluar.')
     }
 
     return data
@@ -319,12 +322,11 @@ console.log("Box yang dikirim ke UI:", box); // Debug: cek apakah angkanya masuk
       })
 
       try {
-        await handleDoorTrigger(status, canonicalComponentName)
+        await handlePrepareExit(status, canonicalComponentName)
+        setNotice('Data scan berhasil disimpan. Silakan tempelkan fingerprint sekali lagi untuk membuka pintu keluar.')
       } catch (doorError) {
-        setNotice(`Data scan berhasil disimpan. Namun pemicu pintu gagal: ${doorError.message}`)
+        setNotice(`Data scan berhasil disimpan, tetapi mode fingerprint keluar gagal disiapkan: ${doorError.message}`)
       }
-
-      setNotice('Data scan berhasil disimpan ke database dan akan tampil di Daftar Peminjam.')
       setDetected(null)
       setQuantity('1')
       setStatus('meminjam')
@@ -341,7 +343,7 @@ console.log("Box yang dikirim ke UI:", box); // Debug: cek apakah angkanya masuk
       <div className="flex h-full min-h-0 w-full max-w-[1760px] mx-auto flex-col gap-3 sm:gap-4">
         <div className="rounded-2xl border border-indigo-500/40 bg-slate-900/90 px-4 py-4 sm:px-6 sm:py-5 shadow-xl shrink-0">
           <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-indigo-100">Dashboard Mahasiswa - Smart Lab Access</h1>
-          <p className="mt-1 text-xs sm:text-sm md:text-base text-slate-300">Alur: 1. Pilih status 2. Mulai scan 3. Pantau live kamera 4. Isi jumlah 5. Selesai simpan.</p>
+          <p className="mt-1 text-xs sm:text-sm md:text-base text-slate-300">Alur: 1. Pilih status 2. Mulai scan 3. Pantau live kamera 4. Isi jumlah 5. Selesai simpan 6. Fingerprint keluar.</p>
           <p className="mt-2 text-xs sm:text-sm text-cyan-300 font-semibold">Login sebagai: {student.name} ({student.nim || '-'})</p>
         </div>
 
